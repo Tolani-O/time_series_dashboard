@@ -1,10 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer, ComposedChart, Area,
-  ScatterChart, Scatter, ZAxis
-} from 'recharts';
-import Papa from 'papaparse';
 import FileSelector from './components/FileSelector';
 import TimeRangeSlider from './components/TimeRangeSlider';
 import ChartTypeSelector from './components/ChartTypeSelector';
@@ -13,7 +7,7 @@ import PriceDistributionChart from './components/PriceDistributionChart';
 import VolumeDistributionChart from './components/VolumeDistributionChart';
 import BidAskSpreadChart from './components/BidAskSpreadChart';
 import SummaryStatistics from './components/SummaryStatistics';
-import { loadCSVFile } from './utils/fileHandlers';
+import { loadFileData, getFiles } from './utils/dataLoader'; // Importing the new loadFileData function
 
 function App() {
   // State management
@@ -28,27 +22,20 @@ function App() {
   const [chartType, setChartType] = useState('price');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [loadMockFiles] = useState(true); // New state to determine file loading type
 
   // Find available data files
   useEffect(() => {
-    // This would be replaced with actual file discovery
-    const mockFiles = [
-      {
-        id: 'GLBX-20250227-P8LQFHG7JM',
-        name: 'GLBX-20250227-P8LQFHG7JM',
-        path: 'data/parsed/GLBX-20250227-P8LQFHG7JM'
-      },
-      {
-        id: 'GLBX-20250226-X7KPFGT5LM',
-        name: 'GLBX-20250226-X7KPFGT5LM',
-        path: 'data/parsed/GLBX-20250226-X7KPFGT5LM'
-      }
-    ];
-    setFiles(mockFiles);
-  }, []);
+    const fetchFiles = async () => {
+      const filesList = await getFiles(loadMockFiles); // Use getFiles to fetch files
+      setFiles(filesList);
+    };
+
+    fetchFiles().then(r => console.log('Files loaded:', r));
+  }, [loadMockFiles]); // Dependency on loadMockFiles
 
   // Handler for file selection
-  const handleFileSelect = (fileId) => {
+  const handleFileSelect = async (fileId) => {
     setLoading(true);
     setError(null);
 
@@ -59,108 +46,18 @@ function App() {
     }
 
     // Load the selected file data
-    loadFileData(fileId);
-  };
-
-  // Function to load data from a selected file
-  const loadFileData = async (fileId) => {
     try {
-      // In a real implementation, this would call loadCSVFile from utils/fileHandlers
-      // For now, use mock data
-      setTimeout(() => {
-        const mockTimeSeriesData = generateMockTimeSeriesData(fileId);
-        const mockPriceDistData = generateMockPriceDistData(fileId);
-        const mockVolumeDistData = generateMockVolumeDistData(fileId);
-        const mockBidAskData = generateMockBidAskData(fileId);
-        const mockSummaryData = generateMockSummaryData(fileId);
-
-        setTimeSeriesData(prev => ({...prev, [fileId]: mockTimeSeriesData}));
-        setPriceDistData(prev => ({...prev, [fileId]: mockPriceDistData}));
-        setVolumeDistData(prev => ({...prev, [fileId]: mockVolumeDistData}));
-        setBidAskData(prev => ({...prev, [fileId]: mockBidAskData}));
-        setSummaryData(prev => ({...prev, [fileId]: mockSummaryData}));
-        setLoading(false);
-      }, 1000);
+      const data = await loadFileData(fileId, loadMockFiles); // Pass true for mock data, or false for CSV data
+      setTimeSeriesData(prev => ({...prev, [fileId]: data.timeSeriesData}));
+      setPriceDistData(prev => ({...prev, [fileId]: data.priceDistData}));
+      setVolumeDistData(prev => ({...prev, [fileId]: data.volumeDistData}));
+      setBidAskData(prev => ({...prev, [fileId]: data.bidAskData}));
+      setSummaryData(prev => ({...prev, [fileId]: data.summaryData}));
     } catch (err) {
-      setError(`Error loading file data: ${err.message}`);
+      setError(err.message);
+    } finally {
       setLoading(false);
     }
-  };
-
-  // Generate mock time series data
-  const generateMockTimeSeriesData = (fileId) => {
-    const isFirstFile = fileId === 'GLBX-20250227-P8LQFHG7JM';
-    const basePrice = isFirstFile ? 100 : 98;
-    const volatility = isFirstFile ? 0.5 : 0.7;
-
-    return Array.from({ length: 100 }, (_, i) => ({
-      seconds_from_start: i * 0.5,
-      price: basePrice + Math.sin(i * 0.1) * volatility + Math.random() * volatility,
-      size: Math.floor(Math.random() * 100) + 10,
-      side_desc: Math.random() > 0.5 ? 'Ask' : 'Bid'
-    }));
-  };
-
-  // Generate mock price distribution data
-  const generateMockPriceDistData = (fileId) => {
-    const isFirstFile = fileId === 'GLBX-20250227-P8LQFHG7JM';
-    const basePrice = isFirstFile ? 100 : 98;
-    const priceRange = Array.from({ length: 20 }, (_, i) => basePrice - 2.5 + i * 0.25);
-
-    return priceRange.map(price => ({
-      price_bin: price,
-      'Ask': Math.floor(Math.random() * 50) + 10,
-      'Bid': Math.floor(Math.random() * 50) + 10
-    }));
-  };
-
-  // Generate mock volume distribution data
-  const generateMockVolumeDistData = (fileId) => {
-    const volumes = [10, 20, 50, 100, 200, 500];
-
-    return volumes.map(size => ({
-      size,
-      'Ask': Math.floor(Math.random() * 100) + 20,
-      'Bid': Math.floor(Math.random() * 100) + 20
-    }));
-  };
-
-  // Generate mock bid-ask spread data
-  const generateMockBidAskData = (fileId) => {
-    const isFirstFile = fileId === 'GLBX-20250227-P8LQFHG7JM';
-    const basePrice = isFirstFile ? 100 : 98;
-
-    return Array.from({ length: 50 }, (_, i) => {
-      const time = i * 1.0;
-      const spread = 0.05 + Math.random() * 0.2;
-      return {
-        seconds_from_start: time,
-        min_ask: basePrice + spread / 2 + Math.random() * 0.1,
-        max_bid: basePrice - spread / 2 - Math.random() * 0.1,
-        spread
-      };
-    });
-  };
-
-  // Generate mock summary statistics
-  const generateMockSummaryData = (fileId) => {
-    const isFirstFile = fileId === 'GLBX-20250227-P8LQFHG7JM';
-    return {
-      total_records: isFirstFile ? 15425 : 12983,
-      unique_symbols: 1,
-      unique_symbol_list: isFirstFile ? 'ES-2025H' : 'ES-2025M',
-      ask_count: isFirstFile ? 7854 : 6492,
-      bid_count: isFirstFile ? 7571 : 6491,
-      min_price: isFirstFile ? 97.25 : 96.50,
-      max_price: isFirstFile ? 102.75 : 99.75,
-      avg_price: isFirstFile ? 100.12 : 98.14,
-      price_std_dev: isFirstFile ? 0.87 : 0.65,
-      min_size: 1,
-      max_size: isFirstFile ? 520 : 480,
-      avg_size: isFirstFile ? 45.7 : 42.3,
-      start_time: isFirstFile ? '2025-02-27T08:30:00.000000000' : '2025-02-26T08:30:00.000000000',
-      end_time: isFirstFile ? '2025-02-27T15:15:00.000000000' : '2025-02-26T15:15:00.000000000'
-    };
   };
 
   // Time range change handlers
