@@ -1,46 +1,32 @@
 import Papa from 'papaparse';
 
-// Function to fetch real files (placeholder)
+// Function to fetch real files
 export const fetchRealFiles = async () => {
-  // Implement the logic to fetch real files from your data source
-  return [
-    {
-      id: 'REAL-FILE-1',
-      name: 'Real File 1',
-      path: 'data/real/real-file-1'
-    },
-    {
-      id: 'REAL-FILE-2',
-      name: 'Real File 2',
-      path: 'data/real/real-file-2'
-    }
-  ];
+  const endPoint = 'http://127.0.0.1:5000/get_files';
+  const response = await fetch(endPoint); // Adjust the path if necessary
+  if (!response.ok) {
+    throw new Error(`Error fetching real files: ${response.statusText}`);
+  }
+  return await response.json(); // Return the fetched file data
 };
 
-export const loadCSVFile = async (filePath) => {
+export const loadCSVFile = async (fileName) => {
   try {
-    const response = await fetch(filePath);
+    const endPoint = 'http://127.0.0.1:5000/get_data';
+    const response = await fetch(endPoint, {
+      method: 'POST', // Specify the request method
+      headers: {
+        'Content-Type': 'application/json', // Indicate the content type
+      },
+      body: JSON.stringify({ fileName }) // Send the fileName in the request body
+    });
 
     if (!response.ok) {
-      throw new Error(`Failed to load file: ${response.status} ${response.statusText}`);
+      throw new Error(`Error loading CSV file: ${response.statusText}`);
     }
 
-    const csvText = await response.text();
-
-    // Parse CSV
-    return new Promise((resolve, reject) => {
-      Papa.parse(csvText, {
-        header: true,
-        dynamicTyping: true,
-        skipEmptyLines: true,
-        complete: (results) => {
-          resolve(results.data);
-        },
-        error: (error) => {
-          reject(error);
-        }
-      });
-    });
+    const data = await response.json();
+    return data; // Return the parsed response data
   } catch (error) {
     console.error('Error loading CSV file:', error);
     throw error;

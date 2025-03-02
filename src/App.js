@@ -22,7 +22,7 @@ function App() {
   const [chartType, setChartType] = useState('price');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [loadMockFiles] = useState(true); // New state to determine file loading type
+  const [loadMockFiles] = useState(false); // New state to determine file loading type
 
   // Find available data files
   useEffect(() => {
@@ -40,23 +40,26 @@ function App() {
     setError(null);
 
     if (selectedFiles.includes(fileId)) {
+      // Deselecting the file
       setSelectedFiles(selectedFiles.filter(id => id !== fileId));
+      setLoading(false); // Stop loading since we are deselecting
     } else {
+      // Selecting the file
       setSelectedFiles([...selectedFiles, fileId]);
-    }
 
-    // Load the selected file data
-    try {
-      const data = await loadFileData(fileId, loadMockFiles); // Pass true for mock data, or false for CSV data
-      setTimeSeriesData(prev => ({...prev, [fileId]: data.timeSeriesData}));
-      setPriceDistData(prev => ({...prev, [fileId]: data.priceDistData}));
-      setVolumeDistData(prev => ({...prev, [fileId]: data.volumeDistData}));
-      setBidAskData(prev => ({...prev, [fileId]: data.bidAskData}));
-      setSummaryData(prev => ({...prev, [fileId]: data.summaryData}));
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+      // Load the selected file data
+      try {
+        const data = await loadFileData(fileId, loadMockFiles); // Pass true for mock data, or false for CSV data
+        setTimeSeriesData(prev => ({...prev, [fileId]: data.timeSeriesData}));
+        setPriceDistData(prev => ({...prev, [fileId]: data.priceDistData}));
+        setVolumeDistData(prev => ({...prev, [fileId]: data.volumeDistData}));
+        setBidAskData(prev => ({...prev, [fileId]: data.bidAskData}));
+        setSummaryData(prev => ({...prev, [fileId]: data.summaryData}));
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
