@@ -19,7 +19,7 @@ const TimeRangeSlider = ({ timeRange, onChange }) => {
         <input
           type="range"
           min="0"
-          max="50"
+          max="100"
           value={timeRange[0]}
           onChange={handleStartChange}
           className="w-full"
@@ -31,7 +31,7 @@ const TimeRangeSlider = ({ timeRange, onChange }) => {
         <input
           type="range"
           min="50"
-          max="100"
+          max="1000"
           value={timeRange[1]}
           onChange={handleEndChange}
           className="w-full"

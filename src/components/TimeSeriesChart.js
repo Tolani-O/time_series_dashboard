@@ -4,7 +4,7 @@ import {
   Tooltip, Legend, ResponsiveContainer, ComposedChart, Area
 } from 'recharts';
 
-const TimeSeriesChart = ({ selectedFiles, timeSeriesData, bidAskData, chartType, getFilteredData }) => {
+const TimeSeriesChart = ({ selectedFiles, bidAskData, chartType, getFilteredData }) => {
   if (selectedFiles.length === 0) {
     return <div className="text-center mt-8">Select files to visualize</div>;
   }
@@ -24,6 +24,7 @@ const TimeSeriesChart = ({ selectedFiles, timeSeriesData, bidAskData, chartType,
                 />
                 <YAxis
                   label={{ value: 'Price', angle: -90, position: 'insideLeft' }}
+                  domain={[dataMin => dataMin - 0.5, dataMax => dataMax + 0.5]}  // 1% padding
                 />
                 <Tooltip />
                 <Legend />
