@@ -20,13 +20,13 @@ function App() {
   const [timeIndices, setTimeIndices] = useState({});
   const [priceDistData, setPriceDistData] = useState({});
   const [volumeDistData, setVolumeDistData] = useState({});
-  const [bidAskData, setBidAskData] = useState({});
   const [summaryData, setSummaryData] = useState({});
   const [timeRange, setTimeRange] = useState([0, 100]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [loadMockFiles] = useState(false); // New state to determine file loading type
   const [isCacheCleared, setIsCacheCleared] = useState(false); // New state for tracking cache status
+  const [maxTimeValue, setMaxTimeValue] = useState(1000); // Default to 1000 seconds
 
   // Find available data files and set up time indices
   useEffect(() => {
@@ -53,11 +53,14 @@ function App() {
     setTimeIndices({});
     setPriceDistData({});
     setVolumeDistData({});
-    setBidAskData({});
     setSummaryData({});
 
     // Also clear selected files since their data is now gone
     setSelectedFiles([]);
+
+    // Reset time-related states
+    setMaxTimeValue(1000); // Reset to default max
+    setTimeRange([0, 100]); // Reset to default range
 
     // Set cache cleared status for feedback
     setIsCacheCleared(true);
@@ -111,11 +114,26 @@ function App() {
       // Load the selected file data
       try {
         const data = await loadFileData(fileId, loadMockFiles); // Pass true for mock data, or false for CSV data
+        // Calculate max time value from the loaded data - more efficiently
+        if (data.timeSeriesData && data.timeSeriesData.length > 0) {
+          // Since the data is sorted, the max time is in the last element
+          const lastElement = data.timeSeriesData[data.timeSeriesData.length - 1];
+          const dataMaxTime = lastElement && typeof lastElement.seconds_from_start === 'number'
+            ? lastElement.seconds_from_start
+            : 1000;
+
+          // Update max time if this file has a greater max time
+          setMaxTimeValue(prevMax => Math.max(prevMax, Math.ceil(dataMaxTime)));
+
+          // If this is the first file being loaded, set the end time to match its max time
+          if (selectedFiles.length === 0) {
+            setTimeRange([0, Math.min(Math.ceil(dataMaxTime), 1000)]);
+          }
+        }
         setTimeSeriesData(prev => ({...prev, [fileId]: data.timeSeriesData}));
         setTimeIndices(prev => ({ ...prev, [fileId]: createTimeIndex(data.timeSeriesData)}));
         setPriceDistData(prev => ({...prev, [fileId]: data.priceDistData}));
         setVolumeDistData(prev => ({...prev, [fileId]: data.volumeDistData}));
-        setBidAskData(prev => ({...prev, [fileId]: data.bidAskData}));
         setSummaryData(prev => ({...prev, [fileId]: data.summaryData}));
       } catch (err) {
         setError(err.message);
@@ -218,6 +236,7 @@ function App() {
               <TimeRangeSlider
                 timeRange={timeRange}
                 onChange={handleTimeRangeChange}
+                maxTimeValue={maxTimeValue}
               />
             </div>
 
