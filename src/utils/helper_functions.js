@@ -2,15 +2,17 @@
 export const binarySearchLowerBound = (arr, target, key = null) => {
   let left = 0;
   let right = arr.length - 1;
-  let result = arr.length; // Default if all elements are < target
+  let result = -1; // Default if all elements are < target
 
   while (left <= right) {
     const mid = Math.floor((left + right) / 2);
     const value = key ? arr[mid][key] : arr[mid];
     if (value >= target) {
+      // This index might be valid, but we need to check if there's an earlier one
       result = mid;
       right = mid - 1;
     } else {
+      // This index is too early, look in the right half
       left = mid + 1;
     }
   }
@@ -35,13 +37,3 @@ export const binarySearchUpperBound = (arr, target, key = null) => {
   }
   return result;
 };
-
-// Helper function to find the last index that satisfies a condition
-export const findLastIndex= (array, predicate) => {
-  for (let i = array.length - 1; i >= 0; i--) {
-    if (predicate(array[i])) {
-      return i;
-    }
-  }
-  return -1;
-}
