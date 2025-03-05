@@ -1,81 +1,77 @@
-import React, { useState, useEffect } from 'react';
+import React, {useCallback, useEffect, useReducer, useState} from 'react';
 import FileSelector from './components/FileSelector';
 import TimeRangeSlider from './components/TimeRangeSlider';
 import TimeSeriesChart from './components/TimeSeriesChart';
 import PriceDistributionChart from './components/PriceDistributionChart';
 import VolumeDistributionChart from './components/VolumeDistributionChart';
 import SummaryStatistics from './components/SummaryStatistics';
-import { binarySearchLowerBound, binarySearchUpperBound } from './utils/helper_functions'; // Importing the new search functions
-import { loadFileData, getFiles } from './utils/dataLoader'; // Importing the new loadFileData function
-import './App.css'; // Import the stylesheet
+import {binarySearchLowerBound, binarySearchUpperBound} from './utils/helper_functions';
+import {getFiles, loadFileData} from './utils/dataLoader';
+import {appReducer} from "./utils/appReducer";
+import './App.css';
 
 // Define step as a global variable
-const step = 10; // Every 10 seconds, adjust based on your data granularity
+const step = 10; // Every 10 seconds
+
+// Define initial state
+const initialState = {
+  files: [],
+  selectedFiles: [],
+  appData: {
+    timeSeriesData: {},
+    timeIndices: {},
+    priceDistData: {},
+    volumeDistData: {},
+    summaryData: {}
+  },
+  timeRange: [0, 100],
+  maxTimeValue: 1000,
+  loading: {
+    filesLoading: false,
+    dataLoading: false
+  },
+  error: null,
+  isCacheCleared: false
+};
 
 function App() {
-  // State management
-  const [files, setFiles] = useState([]);
-  const [selectedFiles, setSelectedFiles] = useState([]);
-  const [timeSeriesData, setTimeSeriesData] = useState({});
-  const [timeIndices, setTimeIndices] = useState({});
-  const [priceDistData, setPriceDistData] = useState({});
-  const [volumeDistData, setVolumeDistData] = useState({});
-  const [summaryData, setSummaryData] = useState({});
-  const [timeRange, setTimeRange] = useState([0, 100]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [loadMockFiles] = useState(false); // New state to determine file loading type
-  const [isCacheCleared, setIsCacheCleared] = useState(false); // New state for tracking cache status
-  const [maxTimeValue, setMaxTimeValue] = useState(1000); // Default to 1000 seconds
+  const [state, dispatch] = useReducer(appReducer, initialState);
+  const [loadMockFiles] = useState(false);
 
-  // Find available data files and set up time indices
+  const {
+    files,
+    selectedFiles,
+    appData: { timeSeriesData, timeIndices, priceDistData, volumeDistData, summaryData },
+    timeRange,
+    maxTimeValue,
+    loading,
+    error,
+    isCacheCleared
+  } = state;
+
+  // Find available data files
   useEffect(() => {
-    // Fetch files first
-    fetchFiles()
-        .then(() => console.log('Files loaded successfully'))
-        .catch(error => {
-          console.error('Error loading files:', error);
-          setError('Failed to load available data files');
-      });
-  }, []);
-
-
-  const fetchFiles = async () => {
-      const filesList = await getFiles(loadMockFiles); // Use getFiles to fetch files
-      setFiles(filesList);
+    const fetchFiles = async () => {
+      dispatch({ type: 'SET_LOADING', payload: { filesLoading: true } });
+      try {
+        const filesList = await getFiles(loadMockFiles);
+        dispatch({ type: 'SET_FILES', payload: filesList });
+      } catch (error) {
+        console.error('Error loading files:', error);
+        dispatch({
+          type: 'SET_ERROR',
+          payload: 'Failed to load available data files'
+        });
+      } finally {
+        dispatch({ type: 'SET_LOADING', payload: { filesLoading: false } });
+      }
     };
 
+    fetchFiles().then(() => console.log('Files loaded successfully'));
+  }, [loadMockFiles]);
 
-  // Function to handle clearing the cache
-  const handleClearCache = () => {
-    // Clear all data states
-    setTimeSeriesData({});
-    setTimeIndices({});
-    setPriceDistData({});
-    setVolumeDistData({});
-    setSummaryData({});
-
-    // Also clear selected files since their data is now gone
-    setSelectedFiles([]);
-
-    // Reset time-related states
-    setMaxTimeValue(1000); // Reset to default max
-    setTimeRange([0, 100]); // Reset to default range
-
-    // Set cache cleared status for feedback
-    setIsCacheCleared(true);
-
-    // Reset the cache cleared status after 3 seconds
-    setTimeout(() => {
-      setIsCacheCleared(false);
-    }, 3000);
-
-    console.log('Cache cleared successfully');
-  };
-
-
-  // This would run once when loading data
-  const createTimeIndex = (data) => {
+  // Create time index function
+  const createTimeIndex = useCallback((data) => {
     if (!data || !Array.isArray(data)) return {};
 
     const index = {};
@@ -89,67 +85,123 @@ function App() {
     });
 
     return index;
-  };
+  }, []);
 
   // Handler for file selection
-  const handleFileSelect = async (fileId) => {
-    setLoading(true);
-    setError(null);
+  const handleFileSelect = useCallback(async (fileId) => {
+    // Start loading state
+    dispatch({ type: 'SET_LOADING', payload: { dataLoading: true } });
+    dispatch({ type: 'SET_ERROR', payload: null });
 
     if (selectedFiles.includes(fileId)) {
       // Deselecting the file
-      setSelectedFiles(selectedFiles.filter(id => id !== fileId));
-      setLoading(false); // Stop loading since we are deselecting
+      dispatch({
+        type: 'SET_SELECTED_FILES',
+        payload: selectedFiles.filter(id => id !== fileId)
+      });
+      dispatch({ type: 'SET_LOADING', payload: { dataLoading: false } });
     } else {
-      // Selecting the file
-      setSelectedFiles([...selectedFiles, fileId]);
+      // Selecting the file - first update selected files
+      dispatch({
+        type: 'SET_SELECTED_FILES',
+        payload: [...selectedFiles, fileId]
+      });
 
       // Check if we already have the data for this file
       if (timeSeriesData[fileId]) {
         console.log(`Using cached data for file ${fileId}`);
-        setLoading(false);
+        dispatch({ type: 'SET_LOADING', payload: { dataLoading: false } });
         return; // Exit early since we already have the data
       }
 
       // Load the selected file data
       try {
-        const data = await loadFileData(fileId, loadMockFiles); // Pass true for mock data, or false for CSV data
-        // Calculate max time value from the loaded data - more efficiently
+        const data = await loadFileData(fileId, loadMockFiles);
+
+        // Create a batch of updates to dispatch at once
+        const updates = [];
+
+        // Calculate max time value from the loaded data
         if (data.timeSeriesData && data.timeSeriesData.length > 0) {
-          // Since the data is sorted, the max time is in the last element
           const lastElement = data.timeSeriesData[data.timeSeriesData.length - 1];
           const dataMaxTime = lastElement && typeof lastElement.seconds_from_start === 'number'
             ? lastElement.seconds_from_start
             : 1000;
 
           // Update max time if this file has a greater max time
-          setMaxTimeValue(prevMax => Math.max(prevMax, Math.ceil(dataMaxTime)));
+          const newMaxTime = Math.max(maxTimeValue, Math.ceil(dataMaxTime));
+          dispatch({ type: 'SET_MAX_TIME_VALUE', payload: newMaxTime });
 
-          // If this is the first file being loaded, set the end time to match its max time
+          // If this is the first file being loaded, set the end time range
           if (selectedFiles.length === 0) {
-            setTimeRange([0, Math.min(Math.ceil(dataMaxTime), 1000)]);
+            dispatch({
+              type: 'SET_TIME_RANGE',
+              payload: [0, Math.min(Math.ceil(dataMaxTime), 1000)]
+            });
           }
         }
-        setTimeSeriesData(prev => ({...prev, [fileId]: data.timeSeriesData}));
-        setTimeIndices(prev => ({ ...prev, [fileId]: createTimeIndex(data.timeSeriesData)}));
-        setPriceDistData(prev => ({...prev, [fileId]: data.priceDistData}));
-        setVolumeDistData(prev => ({...prev, [fileId]: data.volumeDistData}));
-        setSummaryData(prev => ({...prev, [fileId]: data.summaryData}));
+
+        // Create time indices for the data
+        const indices = createTimeIndex(data.timeSeriesData);
+
+        // Update all data states at once in a batch
+        dispatch({
+          type: 'UPDATE_TIME_SERIES_DATA',
+          fileId,
+          data: data.timeSeriesData
+        });
+
+        dispatch({
+          type: 'UPDATE_TIME_INDICES',
+          fileId,
+          data: indices
+        });
+
+        dispatch({
+          type: 'UPDATE_PRICE_DIST_DATA',
+          fileId,
+          data: data.priceDistData
+        });
+
+        dispatch({
+          type: 'UPDATE_VOLUME_DIST_DATA',
+          fileId,
+          data: data.volumeDistData
+        });
+
+        dispatch({
+          type: 'UPDATE_SUMMARY_DATA',
+          fileId,
+          data: data.summaryData
+        });
+
       } catch (err) {
-        setError(err.message);
+        dispatch({ type: 'SET_ERROR', payload: err.message });
       } finally {
-        setLoading(false);
+        dispatch({ type: 'SET_LOADING', payload: { dataLoading: false } });
       }
     }
-  };
+  }, [selectedFiles, timeSeriesData, maxTimeValue, loadMockFiles, createTimeIndex]);
 
   // Time range change handlers
-  const handleTimeRangeChange = (start, end) => {
-    setTimeRange([start, end]);
-  };
+  const handleTimeRangeChange = useCallback((start, end) => {
+    dispatch({ type: 'SET_TIME_RANGE', payload: [start, end] });
+  }, []);
 
-  // Function to filter time series data based on time range
-  const getFilteredTimeSeriesData = (fileId) => {
+  // Function to handle clearing the cache
+  const handleClearCache = useCallback(() => {
+    dispatch({ type: 'CLEAR_CACHE' });
+
+    // Reset the cache cleared status after 3 seconds
+    setTimeout(() => {
+      dispatch({ type: 'SET_CACHE_CLEARED', payload: false });
+    }, 3000);
+
+    console.log('Cache cleared successfully');
+  }, []);
+
+  // Function to filter time series data based on time range - memoize this to prevent recreating on every render
+  const getFilteredTimeSeriesData = useCallback((fileId) => {
     const data = timeSeriesData[fileId];
     const index = timeIndices[fileId];
     if (!data || !index) return [];
@@ -204,19 +256,20 @@ function App() {
 
     // Map indices to data points - no further filtering needed
     return allIndices.map(i => data[i]);
-  };
+  }, [timeRange, timeIndices, timeSeriesData]);
 
+  // Use React's memo for expensive calculations
 
   return (
     <div className="min-h-screen p-4 transition duration-300 ease-in-out">
-      {/* Updated Header with Styled Classes */}
+      {/* Header */}
       <header className="app-header">
         <h1>Futures Tick Data Visualization</h1>
         <p>Interactive visualization of futures contract tick data with nanosecond precision</p>
       </header>
 
       <div className="grid-container">
-        {/* Updated Sidebar/Controls with Card Styling */}
+        {/* Controls */}
         <div className="grid-item">
           <div className="card">
             <h2 className="card-title">Controls</h2>
@@ -227,7 +280,7 @@ function App() {
                 files={files}
                 selectedFiles={selectedFiles}
                 onSelectFile={handleFileSelect}
-                loading={loading}
+                loading={loading.filesLoading || loading.dataLoading}
               />
             </div>
 
@@ -258,7 +311,7 @@ function App() {
             </div>
 
             {/* Status Messages */}
-            {loading && (
+            {(loading.filesLoading || loading.dataLoading) && (
               <div className="status-message status-loading">
                 Loading data...
               </div>

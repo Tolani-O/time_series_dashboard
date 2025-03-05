@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import FileChart from './FileChart'; // Import the extracted FileChart component
 
 // Main TimeSeriesChart component
@@ -8,11 +8,6 @@ const TimeSeriesChart = ({ selectedFiles, getFilteredData, binCount = 20 }) => {
   const [showSize, setShowSize] = useState(true);
   const [showHistogram, setShowHistogram] = useState(true);
   const [histogramBinCount, setHistogramBinCount] = useState(binCount);
-
-  // When binCount prop changes, update histogramBinCount
-  useEffect(() => {
-    setHistogramBinCount(binCount);
-  }, [binCount]);
 
   if (selectedFiles.length === 0) {
     return <div className="text-center mt-8">Select files to visualize</div>;
